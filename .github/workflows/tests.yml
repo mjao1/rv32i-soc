@@ -1,0 +1,72 @@
+name: RTL Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: install iverilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog && mkdir -p sim
+
+      - name: alu
+        run: |
+          iverilog -g2012 -o sim/tb_alu.vvp rtl/rv32i_pkg.sv rtl/alu.sv sim/tb_alu.sv
+          vvp sim/tb_alu.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: register_file
+        run: |
+          iverilog -g2012 -o sim/tb_register_file.vvp rtl/rv32i_pkg.sv rtl/register_file.sv sim/tb_register_file.sv
+          vvp sim/tb_register_file.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: immediate_generator
+        run: |
+          iverilog -g2012 -o sim/tb_immediate_generator.vvp rtl/rv32i_pkg.sv rtl/immediate_generator.sv sim/tb_immediate_generator.sv
+          vvp sim/tb_immediate_generator.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: branch_unit
+        run: |
+          iverilog -g2012 -o sim/tb_branch_unit.vvp rtl/rv32i_pkg.sv rtl/branch_unit.sv sim/tb_branch_unit.sv
+          vvp sim/tb_branch_unit.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: decoder
+        run: |
+          iverilog -g2012 -o sim/tb_decoder.vvp rtl/rv32i_pkg.sv rtl/decoder.sv sim/tb_decoder.sv
+          vvp sim/tb_decoder.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: instruction_memory
+        run: |
+          iverilog -g2012 -o sim/tb_instruction_memory.vvp rtl/instruction_memory.sv sim/tb_instruction_memory.sv
+          vvp sim/tb_instruction_memory.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: data_memory
+        run: |
+          iverilog -g2012 -o sim/tb_data_memory.vvp rtl/data_memory.sv sim/tb_data_memory.sv
+          vvp sim/tb_data_memory.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: rv32i_cpu
+        run: |
+          iverilog -g2012 -o sim/tb_rv32i_cpu.vvp rtl/rv32i_pkg.sv sim/tb_rv32i_cpu.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv
+          vvp sim/tb_rv32i_cpu.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: rv32i_cpu_c
+        run: |
+          iverilog -g2012 -o sim/tb_rv32i_cpu_c.vvp rtl/rv32i_pkg.sv sim/tb_rv32i_cpu_c.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv
+          vvp sim/tb_rv32i_cpu_c.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
