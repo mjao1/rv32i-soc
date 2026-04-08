@@ -12,9 +12,9 @@ module register_file (
 
   logic [31:0] regs_r [0:31];
 
-  // Async read
-  assign rs1_data_o = regs_r[rs1_addr_i];
-  assign rs2_data_o = regs_r[rs2_addr_i];
+  // Async read with same cycle WB bypass (ID read vs WB write to same rd)
+  assign rs1_data_o = (reg_write_i && rd_addr_i != 5'b0 && rd_addr_i == rs1_addr_i) ? rd_data_i : regs_r[rs1_addr_i];
+  assign rs2_data_o = (reg_write_i && rd_addr_i != 5'b0 && rd_addr_i == rs2_addr_i) ? rd_data_i : regs_r[rs2_addr_i];
 
   // Sync write
   always_ff @(posedge clk_i) begin

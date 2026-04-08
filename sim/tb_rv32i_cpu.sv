@@ -1,6 +1,8 @@
 module tb_rv32i_cpu import rv32i_pkg::*; ();
   localparam int NUM_INSTR_EXECUTED = 11;
   localparam logic [31:0] EXPECTED_FINAL_PC = 32'h0000_0030; // after last instr at 0x2C, PC is 0x30
+  localparam int MAX_WAIT_PC = 256;
+  localparam int DRAIN_CYCLES = 12;
 
   logic clk_w;
   logic rst_w;
@@ -74,20 +76,6 @@ module tb_rv32i_cpu import rv32i_pkg::*; ();
     end
   endtask
 
-  task automatic check_pc(
-    input string name,
-    input logic [31:0] expected
-  );
-    logic [31:0] actual;
-    actual = u_rv32i_cpu.pc_r;
-    test_count_r++;
-    if (actual === expected) begin
-      pass_count_r++;
-    end else begin
-      $display("FAIL: %s PC=0x%08h expected=0x%08h", name, actual, expected);
-    end
-  endtask
-
   task automatic load_smoke_program;
     // Load program via write port
     load_word(32'h00, 32'h00500093); // ADDI x1, x0, 5
@@ -124,7 +112,11 @@ module tb_rv32i_cpu import rv32i_pkg::*; ();
     check_mem("mem[2]", 2, 8'h00);
     check_mem("mem[3]", 3, 8'h00);
 
-    check_pc("final PC", EXPECTED_FINAL_PC);
+  endtask
+
+  task automatic assert_invariants;
+    if (u_rv32i_cpu.u_register_file.regs_r[0] !== 32'h0)
+      $error("ASSERT: x0 must stay 0");
   endtask
 
   initial begin
@@ -139,10 +131,24 @@ module tb_rv32i_cpu import rv32i_pkg::*; ();
 
     rst_w = 1'b0;
 
-    repeat (NUM_INSTR_EXECUTED) @(posedge clk_w);
+    begin : wait_for_fetch_pc
+      int c;
+      c = 0;
+      while (u_rv32i_cpu.pc_r !== EXPECTED_FINAL_PC && c < MAX_WAIT_PC) begin
+        @(posedge clk_w);
+        c++;
+      end
+      if (c >= MAX_WAIT_PC) begin
+        $fatal(1, "timeout: pc_r never reached 0x%08h (last seen 0x%08h)", EXPECTED_FINAL_PC,
+            u_rv32i_cpu.pc_r);
+      end
+    end
+
+    repeat (DRAIN_CYCLES) @(posedge clk_w);
     #1;
 
     verify_arch_state();
+    assert_invariants();
 
     $display("PASSED: %0d", pass_count_r);
     $display("FAILED: %0d", test_count_r - pass_count_r);
