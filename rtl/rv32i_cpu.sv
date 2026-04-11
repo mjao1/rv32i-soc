@@ -1,4 +1,4 @@
-module rv32i_cpu import rv32i_pkg::*; #(
+module rv32i_cpu #(
   parameter IMEM_SIZE = 1024,
   parameter DMEM_SIZE = 4096,
   parameter logic [31:0] DMEM_BASE = 32'h0000_0000
@@ -68,14 +68,14 @@ module rv32i_cpu import rv32i_pkg::*; #(
   end
 
   // -ID-
-  alu_op_t id_alu_op_w;
+  logic [3:0] id_alu_op_w;
   logic id_alu_src_a_w;
   logic id_alu_src_b_w;
   logic id_reg_write_w;
   logic id_mem_write_w;
-  result_src_t id_result_src_w;
+  logic [1:0] id_result_src_w;
   logic id_branch_w;
-  branch_op_t id_branch_op_w;
+  logic [2:0] id_branch_op_w;
   logic [4:0] id_rs1_addr_w;
   logic [4:0] id_rs2_addr_w;
   logic [4:0] id_rd_addr_w;
@@ -130,14 +130,14 @@ module rv32i_cpu import rv32i_pkg::*; #(
   logic [31:0] id_ex_imm_r;
   logic [31:0] id_ex_rs1_data_r;
   logic [31:0] id_ex_rs2_data_r;
-  alu_op_t id_ex_alu_op_r;
+  logic [3:0] id_ex_alu_op_r;
   logic id_ex_alu_src_a_r;
   logic id_ex_alu_src_b_r;
   logic id_ex_reg_write_r;
   logic id_ex_mem_write_r;
-  result_src_t id_ex_result_src_r;
+  logic [1:0] id_ex_result_src_r;
   logic id_ex_branch_r;
-  branch_op_t id_ex_branch_op_r;
+  logic [2:0] id_ex_branch_op_r;
   logic [4:0] id_ex_rs1_addr_r;
   logic [4:0] id_ex_rs2_addr_r;
   logic [4:0] id_ex_rd_addr_r;
@@ -149,14 +149,14 @@ module rv32i_cpu import rv32i_pkg::*; #(
       id_ex_imm_r        <= 32'b0;
       id_ex_rs1_data_r   <= 32'b0;
       id_ex_rs2_data_r   <= 32'b0;
-      id_ex_alu_op_r     <= ALU_ADD;
+      id_ex_alu_op_r     <= rv32i_pkg::ALU_ADD;
       id_ex_alu_src_a_r  <= 1'b0;
       id_ex_alu_src_b_r  <= 1'b0;
       id_ex_reg_write_r  <= 1'b0;
       id_ex_mem_write_r  <= 1'b0;
-      id_ex_result_src_r <= RESULT_ALU;
+      id_ex_result_src_r <= rv32i_pkg::RESULT_ALU;
       id_ex_branch_r     <= 1'b0;
-      id_ex_branch_op_r  <= BRANCH_BEQ;
+      id_ex_branch_op_r  <= rv32i_pkg::BRANCH_BEQ;
       id_ex_rs1_addr_r   <= 5'b0;
       id_ex_rs2_addr_r   <= 5'b0;
       id_ex_rd_addr_r    <= 5'b0;
@@ -166,14 +166,14 @@ module rv32i_cpu import rv32i_pkg::*; #(
       id_ex_imm_r        <= 32'b0;
       id_ex_rs1_data_r   <= 32'b0;
       id_ex_rs2_data_r   <= 32'b0;
-      id_ex_alu_op_r     <= ALU_ADD;
+      id_ex_alu_op_r     <= rv32i_pkg::ALU_ADD;
       id_ex_alu_src_a_r  <= 1'b0;
       id_ex_alu_src_b_r  <= 1'b0;
       id_ex_reg_write_r  <= 1'b0;
       id_ex_mem_write_r  <= 1'b0;
-      id_ex_result_src_r <= RESULT_ALU;
+      id_ex_result_src_r <= rv32i_pkg::RESULT_ALU;
       id_ex_branch_r     <= 1'b0;
-      id_ex_branch_op_r  <= BRANCH_BEQ;
+      id_ex_branch_op_r  <= rv32i_pkg::BRANCH_BEQ;
       id_ex_rs1_addr_r   <= 5'b0;
       id_ex_rs2_addr_r   <= 5'b0;
       id_ex_rd_addr_r    <= 5'b0;
@@ -262,7 +262,7 @@ module rv32i_cpu import rv32i_pkg::*; #(
   logic ex_mem_mem_write_r;
   logic [2:0] ex_mem_funct3_r;
   logic ex_mem_reg_write_r;
-  result_src_t ex_mem_result_src_r;
+  logic [1:0] ex_mem_result_src_r;
   logic [4:0] ex_mem_rd_addr_r;
   logic [31:0] ex_mem_pc_plus4_r;
 
@@ -273,7 +273,7 @@ module rv32i_cpu import rv32i_pkg::*; #(
       ex_mem_mem_write_r  <= 1'b0;
       ex_mem_funct3_r     <= 3'b0;
       ex_mem_reg_write_r  <= 1'b0;
-      ex_mem_result_src_r <= RESULT_ALU;
+      ex_mem_result_src_r <= rv32i_pkg::RESULT_ALU;
       ex_mem_rd_addr_r    <= 5'b0;
       ex_mem_pc_plus4_r   <= 32'b0;
     end else begin
@@ -309,9 +309,9 @@ module rv32i_cpu import rv32i_pkg::*; #(
 
   always_comb begin
     case (ex_mem_result_src_r)
-      RESULT_ALU: ex_mem_wb_data_w = ex_mem_alu_res_r;
-      RESULT_PC4: ex_mem_wb_data_w = ex_mem_pc_plus4_r;
-      RESULT_MEM: ex_mem_wb_data_w = mem_read_data_w;
+      rv32i_pkg::RESULT_ALU: ex_mem_wb_data_w = ex_mem_alu_res_r;
+      rv32i_pkg::RESULT_PC4: ex_mem_wb_data_w = ex_mem_pc_plus4_r;
+      rv32i_pkg::RESULT_MEM: ex_mem_wb_data_w = mem_read_data_w;
       default: ex_mem_wb_data_w = ex_mem_alu_res_r;
     endcase
   end

@@ -111,3 +111,11 @@ iverilog -g2012 -o sim/tb_instruction_memory.vvp rtl/instruction_memory.sv sim/t
 # Data memory
 iverilog -g2012 -o sim/tb_data_memory.vvp rtl/data_memory.sv sim/tb_data_memory.sv && vvp sim/tb_data_memory.vvp
 ```
+
+## Synthesis
+
+```bash
+yosys synth.ys
+```
+
+Output: `synth_rv32i_top.v`
