@@ -2,7 +2,12 @@
 
 ## Project Overview
 
-A synthesizable 5-stage pipelined RISC-V RV32I processor in SystemVerilog, aimed at ASIC-style flows with simulation using Icarus Verilog. The core implements the main RV32I user level integer operations: ALU ops, loads/stores, branches, jumps, LUI/AUIPC, and JAL/JALR. The pipeline is complete for a classic in-order design: operand forwarding from EX/MEM and MEM/WB, hazard handling via load–use stalls, and control flushes on taken branches and jumps. FENCE and SYSTEM (ECALL/EBREAK/CSR) are treated as NOPs. Instruction memory is loaded via a testbench write port or `$readmemh`, data memory is byte-addressable RAM with a configurable base address for bare metal programs.
+A synthesizable 5-stage pipelined RISC-V RV32I processor in SystemVerilog, aimed at ASIC-style flows with simulation using Icarus Verilog. The core implements the main RV32I user level integer operations: ALU ops, loads/stores, branches, jumps, LUI/AUIPC, and JAL/JALR. The pipeline is complete for a classic in-order design: operand forwarding from EX/MEM and MEM/WB, hazard handling via load–use stalls, and control flushes on taken branches and jumps. FENCE and SYSTEM (ECALL/EBREAK/CSR) are treated as NOPs. Instruction memory is loaded via a testbench write port or `$readmemh`, data memory is byte-addressable RAM with a configurable base address for bare metal programs. The microarchitecture design is shown below (most address and control signals are ommitted for simplicity).
+
+<div align="center">
+<img src="assets/rv32i-diagram.png" alt="Microarchitecture block diagram" width="720"/>
+<p>RV32I CPU Microarchitecture</p>
+</div>
 
 ## Architecture Overview
 
