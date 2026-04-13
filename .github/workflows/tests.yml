@@ -88,3 +88,9 @@ jobs:
           iverilog -g2012 -o sim/tb_load_use_hazard.vvp rtl/rv32i_pkg.sv sim/tb_load_use_hazard.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv
           vvp sim/tb_load_use_hazard.vvp | tee test_output.log
           ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: branch_benchmark
+        run: |
+          iverilog -g2012 -o sim/tb_branch_benchmark.vvp rtl/rv32i_pkg.sv sim/tb_branch_benchmark.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv
+          vvp sim/tb_branch_benchmark.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
