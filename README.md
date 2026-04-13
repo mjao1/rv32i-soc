@@ -116,9 +116,15 @@ iverilog -g2012 -o sim/tb_forward_unit.vvp rtl/rv32i_pkg.sv rtl/forward_unit.sv 
 
 # Hazard unit
 iverilog -g2012 -o sim/tb_hazard_unit.vvp rtl/rv32i_pkg.sv rtl/hazard_unit.sv sim/tb_hazard_unit.sv && vvp sim/tb_hazard_unit.vvp
+```
 
-# Load-use hazard tests
+### Case specific tests
+```bash
+# Load-use hazard
 iverilog -g2012 -o sim/tb_load_use_hazard.vvp rtl/rv32i_pkg.sv sim/tb_load_use_hazard.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv && vvp sim/tb_load_use_hazard.vvp
+
+# Branch cycle count benchmark
+iverilog -g2012 -o sim/tb_branch_benchmark.vvp rtl/rv32i_pkg.sv rtl/alu.sv rtl/register_file.sv rtl/data_memory.sv rtl/instruction_memory.sv rtl/decoder.sv rtl/immediate_generator.sv rtl/branch_unit.sv rtl/forward_unit.sv rtl/hazard_unit.sv rtl/rv32i_cpu.sv sim/tb_branch_benchmark.sv && vvp sim/tb_branch_benchmark.vvp
 ```
 
 ## Synthesis
