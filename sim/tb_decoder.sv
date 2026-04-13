@@ -145,7 +145,14 @@ module tb_decoder import rv32i_pkg::*; ();
     // LUI x1, 0x12345
     check("LUI", 32'h12345_0B7, ALU_ADD, 0, 1, 1, 0, RESULT_ALU, 0, BRANCH_BEQ);
     // LUI x5, 0xABCDE
-    check("LUI src_a", 32'hABCDE2B7, ALU_ADD, 1, 1, 1, 0, RESULT_ALU, 0, BRANCH_BEQ);
+    instruction_w = 32'hABCDE2B7;
+    #1;
+    test_count_r++;
+    if (rs1_addr_w === 5'd0 && rd_addr_w === 5'd5) begin
+      pass_count_r++;
+    end else begin
+      $display("FAIL: LUI rs1 zero: rs1=%0d(exp 0) rd=%0d(exp 5)", rs1_addr_w, rd_addr_w);
+    end
     // AUIPC x1, 0x12345
     check("AUIPC", 32'h12345_097, ALU_ADD, 1, 1, 1, 0, RESULT_ALU, 0, BRANCH_BEQ);
 

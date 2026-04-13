@@ -22,7 +22,7 @@ module decoder (
   assign funct3_w = instruction_i[14:12];
   assign funct7_w = instruction_i[31:25];
 
-  assign rs1_addr_o = instruction_i[19:15];
+  assign rs1_addr_o = (opcode_w == rv32i_pkg::OP_LUI) ? 5'd0 : instruction_i[19:15];
   assign rs2_addr_o = instruction_i[24:20];
   assign rd_addr_o  = instruction_i[11:7];
   assign funct3_o   = funct3_w;
