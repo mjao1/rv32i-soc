@@ -27,6 +27,7 @@ module axi_lite_err_slave (
   input logic s_axi_rready
 );
 
+  // Write channel: AW then W (or same cycle)
   typedef enum logic [1:0] {
     WR_IDLE,
     WR_AW_OK,
@@ -54,6 +55,7 @@ module axi_lite_err_slave (
   wire w_fire = s_axi_wvalid && s_axi_wready;
   wire wr_same_cycle_w = (wr_state_r == WR_IDLE) && aw_fire && w_fire;
 
+  // Write FSM
   always_ff @(posedge clk_i) begin
     if (rst_i)
       wr_state_r <= WR_IDLE;
@@ -77,10 +79,12 @@ module axi_lite_err_slave (
   assign s_axi_bresp = axi4_lite_pkg::RESP_SLVERR;
   assign s_axi_bvalid = wr_state_r == WR_B;
 
+  // Read channel: AR handshake, then RDATA (blocked while write response pending)
   wire ar_fire = s_axi_arvalid && s_axi_arready;
 
   assign s_axi_arready = (rd_state_r == RD_IDLE) && !wr_busy_w && !s_axi_bvalid;
 
+  // Read FSM
   always_ff @(posedge clk_i) begin
     if (rst_i)
       rd_state_r <= RD_IDLE;
@@ -107,7 +111,8 @@ module axi_lite_err_slave (
     end
   end
 
-  assign s_axi_rdata = 32'b0;
+  // Outputs to master
+  assign s_axi_rdata = 32'b0; // always error response on read
   assign s_axi_rresp = axi4_lite_pkg::RESP_SLVERR;
   assign s_axi_rvalid = rvalid_r;
 

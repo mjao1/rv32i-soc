@@ -1,9 +1,12 @@
-module axi_lite_dmem_slave #(
-  parameter int MEM_BYTES = 4096,
-  parameter logic [31:0] ADDR_BASE = 32'h0000_0000
+module axi_lite_gpio_slave #(
+  parameter int ADDR_BYTES = 4096,
+  parameter logic [31:0] ADDR_BASE = 32'h1000_0000
 ) (
   input logic clk_i,
   input logic rst_i,
+
+  input logic [31:0] gpio_i,
+  output logic [31:0] gpio_o,
 
   input logic [31:0] s_axi_awaddr,
   input logic [2:0] s_axi_awprot,
@@ -31,25 +34,27 @@ module axi_lite_dmem_slave #(
 );
 
   // Register map
-  logic [7:0] mem_r[0:MEM_BYTES-1];
+  localparam logic [31:0] OFF_DATA = 32'h0000_0000;
+  localparam logic [31:0] OFF_DIR = 32'h0000_0004;
 
-  integer init_i;
-  initial begin
-    for (init_i = 0; init_i < MEM_BYTES; init_i++)
-      mem_r[init_i] = 8'h00;
-  end
-
-  function automatic logic [31:0] phys(input logic [31:0] byte_addr);
-    return byte_addr - ADDR_BASE;
+  function automatic logic addr_in_range(input logic [31:0] byte_addr);
+    return byte_addr >= ADDR_BASE && byte_addr < (ADDR_BASE + ADDR_BYTES);
   endfunction
 
   function automatic logic addr_word_ok(input logic [31:0] byte_addr);
-    logic [31:0] aligned;
-    logic [31:0] p;
-    aligned = byte_addr & 32'hFFFF_FFFC;
-    p = phys(aligned);
-    return byte_addr >= ADDR_BASE && (p + 32'd4 <= MEM_BYTES);
+    return addr_in_range(byte_addr) && addr_in_range(byte_addr + 32'd3);
   endfunction
+
+  // Sync inputs
+  logic [31:0] data_out_r;
+  logic [31:0] dir_r;
+  logic [31:0] gpio_i_sync_r;
+
+  always_ff @(posedge clk_i) begin
+    gpio_i_sync_r <= gpio_i;
+  end
+
+  assign gpio_o = data_out_r & dir_r;
 
   // Write channel: AW then W (or same cycle)
   typedef enum logic [1:0] {
@@ -87,13 +92,25 @@ module axi_lite_dmem_slave #(
       wr_addr_r <= s_axi_awaddr;
   end
 
-  // Apply strobed writes to byte memory (word aligned base from AW/W address)
+  // Write data: apply WSTRB to DATA or DIR registers
+  function automatic logic [31:0] reg_offset(input logic [31:0] axaddr);
+    return axaddr - ADDR_BASE;
+  endfunction
+
   integer k;
   always_ff @(posedge clk_i) begin
-    if (w_fire && addr_word_ok(wr_use_addr_w)) begin
-      for (k = 0; k < 4; k++) begin
-        if (s_axi_wstrb[k])
-          mem_r[phys(wr_use_addr_w & 32'hFFFF_FFFC) + k] <= s_axi_wdata[8*k+:8];
+    if (rst_i) begin
+      data_out_r <= 32'b0;
+      dir_r <= 32'b0;
+    end else if (w_fire && addr_word_ok(wr_use_addr_w)) begin
+      if (reg_offset(wr_use_addr_w) == OFF_DATA) begin
+        for (k = 0; k < 4; k++)
+          if (s_axi_wstrb[k])
+            data_out_r[8*k+:8] <= s_axi_wdata[8*k+:8];
+      end else if (reg_offset(wr_use_addr_w) == OFF_DIR) begin
+        for (k = 0; k < 4; k++)
+          if (s_axi_wstrb[k])
+            dir_r[8*k+:8] <= s_axi_wdata[8*k+:8];
       end
     end
   end
@@ -127,7 +144,23 @@ module axi_lite_dmem_slave #(
 
   assign s_axi_arready = (rd_state_r == RD_IDLE) && !wr_busy_w && !s_axi_bvalid;
 
-  // AR accepted: bump read state machine
+  // Read data: per-register value (DATA merges pads vs latched outputs)
+  function automatic logic [31:0] read_reg(input logic [31:0] axaddr);
+    logic [31:0] off;
+    off = reg_offset(axaddr);
+    if (off == OFF_DATA)
+      return (gpio_i_sync_r & ~dir_r) | (data_out_r & dir_r);
+    if (off == OFF_DIR)
+      return dir_r;
+    return 32'b0;
+  endfunction
+
+  always_ff @(posedge clk_i) begin
+    if (ar_fire && addr_word_ok(s_axi_araddr))
+      rdata_hold_r <= read_reg(s_axi_araddr);
+  end
+
+  // Read FSM
   always_ff @(posedge clk_i) begin
     if (rst_i)
       rd_state_r <= RD_IDLE;
@@ -143,18 +176,6 @@ module axi_lite_dmem_slave #(
     end
   end
 
-  // Capture 32-bit read data from RAM at AR address
-  always_ff @(posedge clk_i) begin
-    if (ar_fire && addr_word_ok(s_axi_araddr))
-      rdata_hold_r <= {
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+3],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+2],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+1],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)]
-      };
-  end
-
-  // Pulse RVALID after accepted AR
   always_ff @(posedge clk_i) begin
     if (rst_i)
       rvalid_r <= 1'b0;
@@ -166,7 +187,7 @@ module axi_lite_dmem_slave #(
     end
   end
 
-  // Outputs to master
+  // Read data outputs
   assign s_axi_rdata = rdata_hold_r;
   assign s_axi_rresp = axi4_lite_pkg::RESP_OKAY;
   assign s_axi_rvalid = rvalid_r;

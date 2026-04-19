@@ -1,6 +1,6 @@
-module axi_lite_dmem_slave #(
-  parameter int MEM_BYTES = 4096,
-  parameter logic [31:0] ADDR_BASE = 32'h0000_0000
+module axi_lite_timer_slave #(
+  parameter int ADDR_BYTES = 4096,
+  parameter logic [31:0] ADDR_BASE = 32'h1000_2000
 ) (
   input logic clk_i,
   input logic rst_i,
@@ -31,25 +31,26 @@ module axi_lite_dmem_slave #(
 );
 
   // Register map
-  logic [7:0] mem_r[0:MEM_BYTES-1];
+  localparam logic [31:0] OFF_COUNT = 32'h0000_0000;
+  localparam logic [31:0] OFF_RELOAD = 32'h0000_0004;
+  localparam logic [31:0] OFF_CTRL = 32'h0000_0008;
 
-  integer init_i;
-  initial begin
-    for (init_i = 0; init_i < MEM_BYTES; init_i++)
-      mem_r[init_i] = 8'h00;
-  end
-
-  function automatic logic [31:0] phys(input logic [31:0] byte_addr);
-    return byte_addr - ADDR_BASE;
+  function automatic logic addr_in_range(input logic [31:0] byte_addr);
+    return byte_addr >= ADDR_BASE && byte_addr < (ADDR_BASE + ADDR_BYTES);
   endfunction
 
   function automatic logic addr_word_ok(input logic [31:0] byte_addr);
-    logic [31:0] aligned;
-    logic [31:0] p;
-    aligned = byte_addr & 32'hFFFF_FFFC;
-    p = phys(aligned);
-    return byte_addr >= ADDR_BASE && (p + 32'd4 <= MEM_BYTES);
+    return addr_in_range(byte_addr) && addr_in_range(byte_addr + 32'd3);
   endfunction
+
+  function automatic logic [31:0] reg_off(input logic [31:0] axaddr);
+    return axaddr - ADDR_BASE;
+  endfunction
+
+  // Counter and control (RELOAD stored for software, not used for wrap in this model)
+  logic [31:0] cnt_r;
+  logic [31:0] reload_r;
+  logic en_r;
 
   // Write channel: AW then W (or same cycle)
   typedef enum logic [1:0] {
@@ -87,15 +88,30 @@ module axi_lite_dmem_slave #(
       wr_addr_r <= s_axi_awaddr;
   end
 
-  // Apply strobed writes to byte memory (word aligned base from AW/W address)
+  // Write data: apply WSTRB to RELOAD and CTRL
   integer k;
   always_ff @(posedge clk_i) begin
-    if (w_fire && addr_word_ok(wr_use_addr_w)) begin
-      for (k = 0; k < 4; k++) begin
-        if (s_axi_wstrb[k])
-          mem_r[phys(wr_use_addr_w & 32'hFFFF_FFFC) + k] <= s_axi_wdata[8*k+:8];
+    if (rst_i) begin
+      reload_r <= 32'hFFFF_FFFF;
+      en_r <= 1'b0;
+    end else if (w_fire && addr_word_ok(wr_use_addr_w)) begin
+      if (reg_off(wr_use_addr_w) == OFF_RELOAD) begin
+        for (k = 0; k < 4; k++)
+          if (s_axi_wstrb[k])
+            reload_r[8*k+:8] <= s_axi_wdata[8*k+:8];
+      end else if (reg_off(wr_use_addr_w) == OFF_CTRL) begin
+        if (s_axi_wstrb[0])
+          en_r <= s_axi_wdata[0];
       end
     end
+  end
+
+  // Free-running counter while enabled
+  always_ff @(posedge clk_i) begin
+    if (rst_i)
+      cnt_r <= 32'b0;
+    else if (en_r)
+      cnt_r <= cnt_r + 32'd1;
   end
 
   // Write FSM
@@ -127,7 +143,9 @@ module axi_lite_dmem_slave #(
 
   assign s_axi_arready = (rd_state_r == RD_IDLE) && !wr_busy_w && !s_axi_bvalid;
 
-  // AR accepted: bump read state machine
+  wire r_done_w = s_axi_rready && rvalid_r;
+
+  // Read FSM
   always_ff @(posedge clk_i) begin
     if (rst_i)
       rd_state_r <= RD_IDLE;
@@ -137,21 +155,10 @@ module axi_lite_dmem_slave #(
           if (ar_fire && addr_word_ok(s_axi_araddr))
             rd_state_r <= RD_WAIT_R;
         RD_WAIT_R:
-          if (s_axi_rready && rvalid_r)
+          if (r_done_w)
             rd_state_r <= RD_IDLE;
       endcase
     end
-  end
-
-  // Capture 32-bit read data from RAM at AR address
-  always_ff @(posedge clk_i) begin
-    if (ar_fire && addr_word_ok(s_axi_araddr))
-      rdata_hold_r <= {
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+3],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+2],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)+1],
-        mem_r[phys(s_axi_araddr & 32'hFFFF_FFFC)]
-      };
   end
 
   // Pulse RVALID after accepted AR
@@ -159,11 +166,29 @@ module axi_lite_dmem_slave #(
     if (rst_i)
       rvalid_r <= 1'b0;
     else begin
-      if (s_axi_rready && rvalid_r)
+      if (r_done_w)
         rvalid_r <= 1'b0;
       else if (ar_fire && addr_word_ok(s_axi_araddr))
         rvalid_r <= 1'b1;
     end
+  end
+
+  // Per register read
+  function automatic logic [31:0] read_reg(input logic [31:0] axaddr);
+    logic [31:0] off;
+    off = reg_off(axaddr);
+    if (off == OFF_COUNT)
+      return cnt_r;
+    if (off == OFF_RELOAD)
+      return reload_r;
+    if (off == OFF_CTRL)
+      return {31'b0, en_r};
+    return 32'b0;
+  endfunction
+
+  always_ff @(posedge clk_i) begin
+    if (ar_fire && addr_word_ok(s_axi_araddr))
+      rdata_hold_r <= read_reg(s_axi_araddr);
   end
 
   // Outputs to master

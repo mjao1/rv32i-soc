@@ -2,9 +2,21 @@ module tb_axi_lite_interconnect ();
 
   localparam logic [31:0] DMEM_BASE = 32'h0000_0000;
   localparam int DMEM_BYTES = 4096;
+  localparam logic [31:0] GPIO_BASE = 32'h1000_0000;
+  localparam int GPIO_BYTES = 4096;
+  localparam logic [31:0] UART_BASE = 32'h1000_1000;
+  localparam int UART_BYTES = 4096;
+  localparam logic [31:0] TIMER_BASE = 32'h1000_2000;
+  localparam int TIMER_BYTES = 4096;
 
   logic clk_w;
   logic rst_w;
+
+  logic [31:0] gpio_i_w;
+  logic [31:0] gpio_o_w;
+
+  logic uart_rx_w;
+  logic uart_tx_w;
 
   logic [31:0] m_axi_awaddr;
   logic [2:0] m_axi_awprot;
@@ -32,10 +44,20 @@ module tb_axi_lite_interconnect ();
 
   axi_lite_interconnect #(
     .DMEM_BASE (DMEM_BASE),
-    .DMEM_BYTES (DMEM_BYTES)
+    .DMEM_BYTES (DMEM_BYTES),
+    .GPIO_BASE (GPIO_BASE),
+    .GPIO_BYTES (GPIO_BYTES),
+    .UART_BASE (UART_BASE),
+    .UART_BYTES (UART_BYTES),
+    .TIMER_BASE (TIMER_BASE),
+    .TIMER_BYTES (TIMER_BYTES)
   ) u_ic (
     .clk_i (clk_w),
     .rst_i (rst_w),
+    .gpio_i (gpio_i_w),
+    .gpio_o (gpio_o_w),
+    .uart_rx_i (uart_rx_w),
+    .uart_tx_o (uart_tx_w),
     .m_axi_awaddr (m_axi_awaddr),
     .m_axi_awprot (m_axi_awprot),
     .m_axi_awvalid (m_axi_awvalid),
@@ -75,6 +97,24 @@ module tb_axi_lite_interconnect ();
     m_axi_arprot = 3'b0;
     m_axi_arvalid = 1'b0;
     m_axi_rready = 1'b0;
+    uart_rx_w = 1'b1;
+  endtask
+
+  // Must match default DIV in axi_lite_uart_slave (cycles per bit)
+  localparam int UART_BIT_CYCLES = 100;
+
+  task automatic uart_serial_rx_byte(input logic [7:0] byte_data);
+    int k;
+    @(posedge clk_w);
+    #1;
+    uart_rx_w = 1'b0;
+    repeat (UART_BIT_CYCLES) @(posedge clk_w);
+    for (k = 0; k < 8; k++) begin
+      uart_rx_w = byte_data[k];
+      repeat (UART_BIT_CYCLES) @(posedge clk_w);
+    end
+    uart_rx_w = 1'b1;
+    repeat (UART_BIT_CYCLES) @(posedge clk_w);
   endtask
 
   task automatic axi_write_word(
@@ -166,6 +206,9 @@ module tb_axi_lite_interconnect ();
     rst_w = 1'b0;
     @(posedge clk_w);
 
+    gpio_i_w = 32'h0000_0000;
+    uart_rx_w = 1'b1;
+
     test_count_r = 0;
     pass_count_r = 0;
 
@@ -218,6 +261,115 @@ module tb_axi_lite_interconnect ();
         pass_count_r++;
       else
         $display("FAIL: aw_then_w read");
+
+      // GPIO: DIR all outputs, DATA drives gpio_o
+      test_count_r++;
+      axi_write_word(GPIO_BASE + 32'h4, 32'hFFFF_FFFF, 4'b1111, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DIR write bresp");
+
+      test_count_r++;
+      axi_write_word(GPIO_BASE + 32'h0, 32'h1234_5678, 4'b1111, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DATA write bresp");
+
+      test_count_r++;
+      if (gpio_o_w === 32'h1234_5678)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio_o=0x%08h expected 0x12345678", gpio_o_w);
+
+      test_count_r++;
+      axi_read_word(GPIO_BASE + 32'h4, rdata, rresp);
+      if (rdata === 32'hFFFF_FFFF && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DIR read data=0x%08h", rdata);
+
+      test_count_r++;
+      axi_read_word(GPIO_BASE + 32'h0, rdata, rresp);
+      if (rdata === 32'h1234_5678 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DATA read data=0x%08h", rdata);
+
+      // Mixed input/output: bits 0-3 output, upper bits read pads
+      test_count_r++;
+      axi_write_word(GPIO_BASE + 32'h4, 32'h0000_000F, 4'b1111, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DIR mask write");
+
+      gpio_i_w = 32'hFFFF_FFF0;
+      @(posedge clk_w);
+
+      test_count_r++;
+      axi_write_word(GPIO_BASE + 32'h0, 32'h0000_000A, 4'b1111, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio DATA nibble write");
+
+      test_count_r++;
+      axi_read_word(GPIO_BASE + 32'h0, rdata, rresp);
+      if (rdata === 32'hFFFF_FFFA && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: gpio mixed read data=0x%08h expected 0xffff_fffa", rdata);
+
+      // UART: TX byte via DATA; wait for serializer (10 bits * DIV cycles)
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h0, 32'h0000_0042, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart TX write bresp");
+
+      test_count_r++;
+      repeat (UART_BIT_CYCLES * 12) @(posedge clk_w);
+      axi_read_word(UART_BASE + 32'h4, rdata, rresp);
+      if (rdata[1] === 1'b1 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart STAT after TX (expect TXE) 0x%08h", rdata);
+
+      // UART: serial RX 0xA5, STATUS then DATA read
+      uart_serial_rx_byte(8'hA5);
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h4, rdata, rresp);
+      if (rdata[1:0] === 2'b11 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart STAT read 0x%08h", rdata);
+
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h0, rdata, rresp);
+      if (rdata[7:0] === 8'hA5 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart RX DATA read 0x%08h", rdata);
+
+      // Timer: enable, run, COUNT increases
+      test_count_r++;
+      axi_write_word(TIMER_BASE + 32'h8, 32'h0000_0001, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: timer CTRL write");
+
+      repeat (25) @(posedge clk_w);
+
+      test_count_r++;
+      axi_read_word(TIMER_BASE + 32'h0, rdata, rresp);
+      if ((rdata >= 32'd20) && (rresp === axi4_lite_pkg::RESP_OKAY))
+        pass_count_r++;
+      else
+        $display("FAIL: timer COUNT read 0x%08h (expected >= 20)", rdata);
 
       // Unmapped write / read -> SLVERR
       test_count_r++;
