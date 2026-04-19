@@ -15,8 +15,12 @@ module tb_axi_lite_interconnect ();
   logic [31:0] gpio_i_w;
   logic [31:0] gpio_o_w;
 
+  logic uart_rx_drv_w;
+  logic uart_loopback_w;
   logic uart_rx_w;
   logic uart_tx_w;
+
+  assign uart_rx_w = uart_loopback_w ? uart_tx_w : uart_rx_drv_w;
 
   logic [31:0] m_axi_awaddr;
   logic [2:0] m_axi_awprot;
@@ -97,24 +101,26 @@ module tb_axi_lite_interconnect ();
     m_axi_arprot = 3'b0;
     m_axi_arvalid = 1'b0;
     m_axi_rready = 1'b0;
-    uart_rx_w = 1'b1;
+    uart_rx_drv_w = 1'b1;
   endtask
 
-  // Must match default DIV in axi_lite_uart_slave (cycles per bit)
-  localparam int UART_BIT_CYCLES = 100;
+  // Cycles per bit; keep in sync with UART DIV register (default 100 in RTL)
+  int uart_bit_cycles_r;
 
   task automatic uart_serial_rx_byte(input logic [7:0] byte_data);
     int k;
+    int bc;
+    bc = uart_bit_cycles_r;
     @(posedge clk_w);
     #1;
-    uart_rx_w = 1'b0;
-    repeat (UART_BIT_CYCLES) @(posedge clk_w);
+    uart_rx_drv_w = 1'b0;
+    repeat (bc) @(posedge clk_w);
     for (k = 0; k < 8; k++) begin
-      uart_rx_w = byte_data[k];
-      repeat (UART_BIT_CYCLES) @(posedge clk_w);
+      uart_rx_drv_w = byte_data[k];
+      repeat (bc) @(posedge clk_w);
     end
-    uart_rx_w = 1'b1;
-    repeat (UART_BIT_CYCLES) @(posedge clk_w);
+    uart_rx_drv_w = 1'b1;
+    repeat (bc) @(posedge clk_w);
   endtask
 
   task automatic axi_write_word(
@@ -207,7 +213,9 @@ module tb_axi_lite_interconnect ();
     @(posedge clk_w);
 
     gpio_i_w = 32'h0000_0000;
-    uart_rx_w = 1'b1;
+    uart_loopback_w = 1'b0;
+    uart_rx_drv_w = 1'b1;
+    uart_bit_cycles_r = 100;
 
     test_count_r = 0;
     pass_count_r = 0;
@@ -322,6 +330,14 @@ module tb_axi_lite_interconnect ();
       else
         $display("FAIL: gpio mixed read data=0x%08h expected 0xffff_fffa", rdata);
 
+      // UART: DIV reset value
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h8, rdata, rresp);
+      if (rdata === 32'd100 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart DIV reset read 0x%08h", rdata);
+
       // UART: TX byte via DATA; wait for serializer (10 bits * DIV cycles)
       test_count_r++;
       axi_write_word(UART_BASE + 32'h0, 32'h0000_0042, 4'b0001, bresp);
@@ -331,7 +347,7 @@ module tb_axi_lite_interconnect ();
         $display("FAIL: uart TX write bresp");
 
       test_count_r++;
-      repeat (UART_BIT_CYCLES * 12) @(posedge clk_w);
+      repeat (uart_bit_cycles_r * 12) @(posedge clk_w);
       axi_read_word(UART_BASE + 32'h4, rdata, rresp);
       if (rdata[1] === 1'b1 && rresp === axi4_lite_pkg::RESP_OKAY)
         pass_count_r++;
@@ -353,6 +369,95 @@ module tb_axi_lite_interconnect ();
         pass_count_r++;
       else
         $display("FAIL: uart RX DATA read 0x%08h", rdata);
+
+      // UART: program DIV and read back (short bit time for following serial tests)
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h8, 32'd80, 4'b1111, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart DIV write bresp");
+
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h8, rdata, rresp);
+      if (rdata === 32'd80 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart DIV read back 0x%08h", rdata);
+
+      uart_bit_cycles_r = 80;
+
+      // UART: duplicate DATA write while TX hold full (second byte queued, third -> SLVERR)
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h0, 32'h0000_00AA, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart dup test first DATA write bresp");
+
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h0, 32'h0000_00BB, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart dup test second DATA write bresp");
+
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h0, 32'h0000_00CC, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_SLVERR)
+        pass_count_r++;
+      else
+        $display("FAIL: uart duplicate DATA write bresp=%0d expected SLVERR", bresp);
+
+      // Drain queued byte and finish any in-flight TX so UART is idle
+      repeat (uart_bit_cycles_r * 24) @(posedge clk_w);
+
+      // UART: TX/RX loopback (uart_rx tied to uart_tx)
+      uart_loopback_w = 1'b1;
+      test_count_r++;
+      axi_write_word(UART_BASE + 32'h0, 32'h0000_0033, 4'b0001, bresp);
+      if (bresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart loopback TX write bresp");
+
+      repeat (uart_bit_cycles_r * 14) @(posedge clk_w);
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h4, rdata, rresp);
+      if (rdata[0] === 1'b1 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart loopback STAT (expect RXNE) 0x%08h", rdata);
+
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h0, rdata, rresp);
+      if (rdata[7:0] === 8'h33 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart loopback DATA 0x%08h", rdata);
+
+      uart_loopback_w = 1'b0;
+
+      // UART: RX overrun — two frames without reading DATA (sticky OVERRUN in STAT[3])
+      uart_serial_rx_byte(8'h11);
+      uart_serial_rx_byte(8'h22);
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h4, rdata, rresp);
+      if (rdata[3] === 1'b1 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart overrun STAT 0x%08h (expect OVERRUN)", rdata);
+
+      test_count_r++;
+      axi_read_word(UART_BASE + 32'h0, rdata, rresp);
+      if (rdata[7:0] === 8'h11 && rresp === axi4_lite_pkg::RESP_OKAY)
+        pass_count_r++;
+      else
+        $display("FAIL: uart overrun first DATA 0x%08h", rdata);
+
+      // Restore default DIV for any later logic
+      axi_write_word(UART_BASE + 32'h8, 32'd100, 4'b1111, bresp);
+      uart_bit_cycles_r = 100;
 
       // Timer: enable, run, COUNT increases
       test_count_r++;
