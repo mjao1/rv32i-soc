@@ -9,6 +9,14 @@ module tb_branch_benchmark import rv32i_pkg::*; ();
   logic [31:0] imem_write_addr_w;
   logic [31:0] imem_write_data_w;
 
+  wire [31:0] ex_mem_alu_res_nc;
+  wire ex_mem_mem_write_nc;
+  wire ex_mem_reg_write_nc;
+  wire [1:0] ex_mem_result_src_nc;
+  wire [2:0] ex_mem_funct3_nc;
+  wire [31:0] ex_mem_rs2_nc;
+  wire [4:0] ex_mem_rd_nc;
+
   rv32i_cpu #(
     .IMEM_SIZE (256),
     .DMEM_SIZE (256)
@@ -17,7 +25,18 @@ module tb_branch_benchmark import rv32i_pkg::*; ();
     .rst_i (rst_w),
     .imem_write_en_i (imem_write_en_w),
     .imem_write_addr_i (imem_write_addr_w),
-    .imem_write_data_i (imem_write_data_w)
+    .imem_write_data_i (imem_write_data_w),
+    .dmem_stall_i (1'b0),
+    .dmem_rsp_valid_i (1'b0),
+    .dmem_load_rd_i (5'b0),
+    .dmem_rdata_i (32'b0),
+    .ex_mem_alu_res_o (ex_mem_alu_res_nc),
+    .ex_mem_mem_write_o (ex_mem_mem_write_nc),
+    .ex_mem_reg_write_o (ex_mem_reg_write_nc),
+    .ex_mem_result_src_o (ex_mem_result_src_nc),
+    .ex_mem_funct3_o (ex_mem_funct3_nc),
+    .ex_mem_rs2_o (ex_mem_rs2_nc),
+    .ex_mem_rd_addr_o (ex_mem_rd_nc)
   );
 
   int test_count_r = 0;

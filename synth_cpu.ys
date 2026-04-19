@@ -1,11 +1,10 @@
 # Top module: rv32i_cpu
-# RTL uses rv32i_pkg::* qualified names (no wildcard import) for Yosys compatibility.
 
 read_verilog -sv rtl/rv32i_pkg.sv
 
 read_verilog -sv rtl/alu.sv
-read_verilog -sv rtl/branch_unit.sv
 read_verilog -sv rtl/branch_predictor.sv
+read_verilog -sv rtl/branch_unit.sv
 read_verilog -sv rtl/data_memory.sv
 read_verilog -sv rtl/decoder.sv
 read_verilog -sv rtl/forward_unit.sv

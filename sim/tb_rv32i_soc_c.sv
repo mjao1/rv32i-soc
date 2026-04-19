@@ -1,6 +1,7 @@
-module tb_rv32i_cpu_c import rv32i_pkg::*; ();
+module tb_rv32i_soc_c import rv32i_pkg::*; ();
   localparam int IMEM_WORDS = 1024;
-  localparam int CYCLES = 100000;
+  // AXI loads/stores take multiple cycles per access, allow headroom vs tb_rv32i_cpu_c.
+  localparam int CYCLES = 500000;
   localparam logic [31:0] DMEM_RAM_BASE = 32'h8000_0000;
 
   // IMEM preload buffer & golden return in a0 (x10)
@@ -13,35 +14,27 @@ module tb_rv32i_cpu_c import rv32i_pkg::*; ();
   logic [31:0] imem_write_addr_w;
   logic [31:0] imem_write_data_w;
 
-  wire [31:0] ex_mem_alu_res_nc;
-  wire ex_mem_mem_write_nc;
-  wire ex_mem_reg_write_nc;
-  wire [1:0] ex_mem_result_src_nc;
-  wire [2:0] ex_mem_funct3_nc;
-  wire [31:0] ex_mem_rs2_nc;
-  wire [4:0] ex_mem_rd_nc;
+  logic [31:0] gpio_i_w;
+  logic [31:0] gpio_o_w;
+  logic uart_rx_w;
+  logic uart_tx_w;
+  logic [31:0] dbg_pc_nc;
 
-  rv32i_cpu #(
+  rv32i_soc #(
     .IMEM_SIZE (IMEM_WORDS),
-    .DMEM_SIZE (4096),
+    .DMEM_BYTES (4096),
     .DMEM_BASE (DMEM_RAM_BASE)
-  ) u_rv32i_cpu (
+  ) u_soc (
     .clk_i (clk_w),
     .rst_i (rst_w),
     .imem_write_en_i (imem_write_en_w),
     .imem_write_addr_i (imem_write_addr_w),
     .imem_write_data_i (imem_write_data_w),
-    .dmem_stall_i (1'b0),
-    .dmem_rsp_valid_i (1'b0),
-    .dmem_load_rd_i (5'b0),
-    .dmem_rdata_i (32'b0),
-    .ex_mem_alu_res_o (ex_mem_alu_res_nc),
-    .ex_mem_mem_write_o (ex_mem_mem_write_nc),
-    .ex_mem_reg_write_o (ex_mem_reg_write_nc),
-    .ex_mem_result_src_o (ex_mem_result_src_nc),
-    .ex_mem_funct3_o (ex_mem_funct3_nc),
-    .ex_mem_rs2_o (ex_mem_rs2_nc),
-    .ex_mem_rd_addr_o (ex_mem_rd_nc)
+    .gpio_i (gpio_i_w),
+    .gpio_o (gpio_o_w),
+    .uart_rx_i (uart_rx_w),
+    .uart_tx_o (uart_tx_w),
+    .dbg_pc_o (dbg_pc_nc)
   );
 
   int i;
@@ -62,16 +55,18 @@ module tb_rv32i_cpu_c import rv32i_pkg::*; ();
   endtask
 
   initial begin
-    $readmemh("test/programs/cpu_return.mem", imem_load);
+    $readmemh("test/programs/soc_c_smoke.mem", imem_load);
     expected_value = 32'd5094; // edit based on test program
 
+    gpio_i_w = 32'b0;
+    uart_rx_w = 1'b1;
     rst_w = 1'b1;
     imem_write_en_w = 1'b0;
     imem_write_addr_w = 32'b0;
     imem_write_data_w = 32'b0;
     @(posedge clk_w);
     #1;
-    
+
     for (i = 0; i < IMEM_WORDS; i++) begin
       load_word(i * 4, imem_load[i]);
     end
@@ -81,10 +76,10 @@ module tb_rv32i_cpu_c import rv32i_pkg::*; ();
     repeat (CYCLES) @(posedge clk_w);
     #1;
 
-    if (u_rv32i_cpu.u_register_file.regs_r[10] === expected_value) begin
+    if (u_soc.u_cpu.u_register_file.regs_r[10] === expected_value) begin
       $display("PASSED: Return value a0 (x10) = %0d", expected_value);
     end else begin
-      $display("FAIL: x10=0x%08h expected %0d", u_rv32i_cpu.u_register_file.regs_r[10], expected_value);
+      $display("FAIL: x10=0x%08h expected %0d", u_soc.u_cpu.u_register_file.regs_r[10], expected_value);
     end
 
     $finish;

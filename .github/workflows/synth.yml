@@ -19,5 +19,10 @@ jobs:
 
       - name: synthesize rv32i_cpu
         run: |
-          yosys synth.ys
+          yosys synth_cpu.ys
           test -f synth_rv32i_top.v
+
+      - name: synthesize rv32i_soc
+        run: |
+          yosys synth_soc.ys
+          test -f synth_rv32i_soc.v

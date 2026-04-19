@@ -77,6 +77,24 @@ jobs:
           vvp sim/tb_rv32i_cpu.vvp | tee test_output.log
           ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
 
+      - name: axi_lite_interconnect
+        run: |
+          iverilog -g2012 -o sim/tb_axi_lite_interconnect.vvp rtl/axi4_lite_pkg.sv rtl/axi_lite_dmem_slave.sv rtl/axi_lite_gpio_slave.sv rtl/axi_lite_uart_slave.sv rtl/axi_lite_timer_slave.sv rtl/axi_lite_err_slave.sv rtl/axi_lite_interconnect.sv sim/tb_axi_lite_interconnect.sv
+          vvp sim/tb_axi_lite_interconnect.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+          
+      - name: rv32i_soc
+        run: |
+          iverilog -g2012 -o sim/tb_rv32i_soc.vvp rtl/rv32i_pkg.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv rtl/rv32i_soc.sv sim/tb_rv32i_soc.sv
+          vvp sim/tb_rv32i_soc.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
+      - name: rv32i_soc_c
+        run: |
+          iverilog -g2012 -o sim/tb_rv32i_soc_c.vvp rtl/rv32i_pkg.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv rtl/rv32i_soc.sv sim/tb_rv32i_soc_c.sv
+          vvp sim/tb_rv32i_soc_c.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
       - name: rv32i_cpu_c
         run: |
           iverilog -g2012 -o sim/tb_rv32i_cpu_c.vvp rtl/rv32i_pkg.sv sim/tb_rv32i_cpu_c.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv

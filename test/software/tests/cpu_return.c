@@ -22,5 +22,5 @@ int main(void) {
   volatile int b = 44;
   volatile int c = 33;
   return sum_range(lo, hi) + max3(a, b, c);
-  // Result: sum_range(1,100) + max3(12,44,33) == 5050 + 44 == 5094
+  /* Result: sum_range(1,100) + max3(12,44,33) == 5050 + 44 == 5094 */
 }

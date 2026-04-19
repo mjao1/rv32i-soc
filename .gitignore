@@ -1,3 +1,4 @@
 *.vvp
 *.vcd
 synth_rv32i_top.v
+synth_rv32i_soc.v

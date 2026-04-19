@@ -1,0 +1,38 @@
+# Top module: rv32i_soc
+
+read_verilog -sv rtl/rv32i_pkg.sv
+read_verilog -sv rtl/axi4_lite_pkg.sv
+
+read_verilog -sv rtl/alu.sv
+read_verilog -sv rtl/axi_lite_dmem_slave.sv
+read_verilog -sv rtl/axi_lite_err_slave.sv
+read_verilog -sv rtl/axi_lite_gpio_slave.sv
+read_verilog -sv rtl/axi_lite_interconnect.sv
+read_verilog -sv rtl/axi_lite_timer_slave.sv
+read_verilog -sv rtl/axi_lite_uart_slave.sv
+read_verilog -sv rtl/branch_predictor.sv
+read_verilog -sv rtl/branch_unit.sv
+read_verilog -sv rtl/data_memory.sv
+read_verilog -sv rtl/decoder.sv
+read_verilog -sv rtl/dmem_axi_lite_master.sv
+read_verilog -sv rtl/forward_unit.sv
+read_verilog -sv rtl/hazard_unit.sv
+read_verilog -sv rtl/immediate_generator.sv
+read_verilog -sv rtl/instruction_memory.sv
+read_verilog -sv rtl/register_file.sv
+read_verilog -sv rtl/rv32i_cpu.sv
+read_verilog -sv rtl/rv32i_soc.sv
+
+hierarchy -check -top rv32i_soc
+
+proc
+
+opt -full
+techmap
+opt
+
+write_verilog synth_rv32i_soc.v
+
+stat
+
+hierarchy -check
