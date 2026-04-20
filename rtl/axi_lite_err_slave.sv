@@ -76,7 +76,7 @@ module axi_lite_err_slave (
     end
   end
 
-  assign s_axi_bresp = axi4_lite_pkg::RESP_SLVERR;
+  assign s_axi_bresp = axi4_lite_pkg::RESP_DECERR;
   assign s_axi_bvalid = wr_state_r == WR_B;
 
   // Read channel: AR handshake, then RDATA (blocked while write response pending)
@@ -112,8 +112,8 @@ module axi_lite_err_slave (
   end
 
   // Outputs to master
-  assign s_axi_rdata = 32'b0; // always error response on read
-  assign s_axi_rresp = axi4_lite_pkg::RESP_SLVERR;
+  assign s_axi_rdata = 32'b0; // unmapped/decode error
+  assign s_axi_rresp = axi4_lite_pkg::RESP_DECERR;
   assign s_axi_rvalid = rvalid_r;
 
 endmodule

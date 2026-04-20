@@ -476,20 +476,20 @@ module tb_axi_lite_interconnect ();
       else
         $display("FAIL: timer COUNT read 0x%08h (expected >= 20)", rdata);
 
-      // Unmapped write / read -> SLVERR
+      // Unmapped write/read -> DECERR
       test_count_r++;
       axi_write_word(DMEM_BASE + DMEM_BYTES, 32'h1, 4'b0001, bresp);
-      if (bresp === axi4_lite_pkg::RESP_SLVERR)
+      if (bresp === axi4_lite_pkg::RESP_DECERR)
         pass_count_r++;
       else
-        $display("FAIL: unmapped write bresp=%0d expected SLVERR", bresp);
+        $display("FAIL: unmapped write bresp=%0d expected DECERR", bresp);
 
       test_count_r++;
       axi_read_word(DMEM_BASE + DMEM_BYTES, rdata, rresp);
-      if (rresp === axi4_lite_pkg::RESP_SLVERR)
+      if (rresp === axi4_lite_pkg::RESP_DECERR)
         pass_count_r++;
       else
-        $display("FAIL: unmapped read resp=%0d expected SLVERR", rresp);
+        $display("FAIL: unmapped read resp=%0d expected DECERR", rresp);
     end
 
     $display("PASSED: %0d", pass_count_r);
