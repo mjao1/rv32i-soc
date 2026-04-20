@@ -95,6 +95,12 @@ jobs:
           vvp sim/tb_rv32i_soc_c.vvp | tee test_output.log
           ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
 
+      - name: rv32i_soc_integration
+        run: |
+          iverilog -g2012 -o sim/tb_rv32i_soc_integration.vvp rtl/rv32i_pkg.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv rtl/rv32i_soc.sv sim/tb_rv32i_soc_integration.sv
+          vvp sim/tb_rv32i_soc_integration.vvp | tee test_output.log
+          ! grep -v 'FAILED: 0' test_output.log | grep -q 'FAIL\|ERROR'
+
       - name: rv32i_cpu_c
         run: |
           iverilog -g2012 -o sim/tb_rv32i_cpu_c.vvp rtl/rv32i_pkg.sv sim/tb_rv32i_cpu_c.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv

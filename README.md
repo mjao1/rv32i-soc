@@ -65,6 +65,7 @@ rv32i-soc/
 │   ├── tb_rv32i_cpu_c.sv        # C program (internal DMEM)
 │   ├── tb_rv32i_cpu.sv          # CPU smoke test
 │   ├── tb_rv32i_soc_c.sv        # C program (AXI DMEM)
+│   ├── tb_rv32i_soc_integration.sv  # C program (DMEM+GPIO+timer+UART)
 │   └── tb_rv32i_soc.sv          # SoC smoke test
 └── test/
     ├── programs/                # *.mem / *.hex images for simulation
@@ -134,35 +135,45 @@ Internal `data_memory` inside `rv32i_cpu` (`EXT_DMEM` off):
 iverilog -g2012 -o sim/tb_rv32i_cpu.vvp rtl/rv32i_pkg.sv rtl/alu.sv rtl/register_file.sv rtl/data_memory.sv rtl/instruction_memory.sv rtl/decoder.sv rtl/immediate_generator.sv rtl/branch_unit.sv rtl/branch_predictor.sv rtl/forward_unit.sv rtl/hazard_unit.sv rtl/rv32i_cpu.sv sim/tb_rv32i_cpu.sv && vvp sim/tb_rv32i_cpu.vvp
 ```
 
-### SoC with compiled C (`tb_rv32i_soc_c`)
+### SoC with compiled C (`tb_rv32i_soc_c`, `tb_rv32i_soc_integration`)
 
-Bare-metal program in IMEM (`$readmemh`); loads and stores go through the AXI-Lite LSU to `axi_lite_dmem_slave` at `0x80000000` (same `link.ld` RAM window as the CPU C test; `rv32i_soc` uses `.DMEM_BASE(32'h8000_0000)` here).
+Bare-metal program in IMEM (`$readmemh`); loads and stores go through the AXI-Lite LSU to `axi_lite_dmem_slave` at `0x80000000` (same `link.ld` RAM window as the CPU C test; `rv32i_soc` uses `.DMEM_BASE(32'h8000_0000)` here). Two testbenches share the same build flow: `tb_rv32i_soc_c` is a small AXI DMEM check; `tb_rv32i_soc_integration` runs a longer test that also exercises GPIO, timer, and UART (the bench loops `uart_tx` to `uart_rx`).
 
-**Build** (`test/software`; one test per `tests/<name>.c` → `../programs/<name>.mem`):
+**Build**:
 
 ```bash
+# Smoke
 cd test/software && make TEST=soc_c_smoke && cd ../..
 ```
 
-Note: `make` / `make TEST=cpu_return` (default test), `make list` (names from `tests/*.c`). Optional: `EXTRA_SRCS="tests/helper.c"` for extra `.c` files on the link line; `PAD_WORDS` (default 1024) sets `$readmemh` depth in `bin2mem.py`.
+```bash
+# Integration
+cd test/software && make TEST=soc_c_integration && cd ../..
+```
 
-**Simulate** (repository root):
+**Simulate**:
 
 ```bash
+# Smoke
 iverilog -g2012 -o sim/tb_rv32i_soc_c.vvp rtl/rv32i_pkg.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv rtl/rv32i_soc.sv sim/tb_rv32i_soc_c.sv && vvp sim/tb_rv32i_soc_c.vvp
 ```
 
-**Checks:** Loads `test/programs/soc_c_smoke.mem` from `tests/soc_c_smoke.c`; compares `a0` to `expected_value` in `sim/tb_rv32i_soc_c.sv`. To use another image, change `$readmemh` and `expected_value` in that testbench.
+```bash
+# Integration
+iverilog -g2012 -o sim/tb_rv32i_soc_integration.vvp rtl/rv32i_pkg.sv rtl/a*.sv rtl/b*.sv rtl/d*.sv rtl/f*.sv rtl/h*.sv rtl/i*.sv rtl/register_file.sv rtl/rv32i_cpu.sv rtl/rv32i_soc.sv sim/tb_rv32i_soc_integration.sv && vvp sim/tb_rv32i_soc_integration.vvp
+```
+
+**Checks:** `tb_rv32i_soc_c` loads `test/programs/soc_c_smoke.mem` and compares `a0` to `expected_value` in the testbench; change `$readmemh` / `expected_value` to point at another image. `tb_rv32i_soc_integration` loads `test/programs/soc_c_integration.mem` from `tests/soc_c_integration.c`; that program returns a four-bit pass bitmap in `a0` (one bit per block: DMEM, GPIO, timer, UART) and the bench passes when `a0 == 0xF`.
 
 ### CPU with compiled C (`tb_rv32i_cpu_c`)
 
-**Build** (`test/software`):
+**Build**:
 
 ```bash
 cd test/software && make && cd ../..
 ```
 
-**Simulate** (repository root):
+**Simulate**:
 
 ```bash
 iverilog -g2012 -o sim/tb_rv32i_cpu_c.vvp rtl/rv32i_pkg.sv rtl/alu.sv rtl/register_file.sv rtl/data_memory.sv rtl/instruction_memory.sv rtl/decoder.sv rtl/immediate_generator.sv rtl/branch_unit.sv rtl/branch_predictor.sv rtl/forward_unit.sv rtl/hazard_unit.sv rtl/rv32i_cpu.sv sim/tb_rv32i_cpu_c.sv && vvp sim/tb_rv32i_cpu_c.vvp

@@ -40,10 +40,10 @@ module rv32i_cpu #(
   always_ff @(posedge clk_i) begin
     if (rst_i)
       pc_r <= 32'b0;
-    else if (stall_any_w)
-      pc_r <= pc_r;
     else if (ex_flush_w)
       pc_r <= redirect_target_w;
+    else if (stall_any_w)
+      pc_r <= pc_r;
     else if (predict_taken_if_w)
       pc_r <= predicted_target_if_w;
     else
@@ -145,6 +145,9 @@ module rv32i_cpu #(
   logic wb_reg_write_w;
   logic [4:0] wb_rd_addr_w;
 
+  logic [31:0] ex_rs1_rf_data_w;
+  logic [31:0] ex_rs2_rf_data_w;
+
   register_file u_register_file (
     .clk_i (clk_i),
     .rst_i (rst_i),
@@ -154,7 +157,11 @@ module rv32i_cpu #(
     .rd_data_i (wb_rd_data_w),
     .reg_write_i (wb_reg_write_w),
     .rs1_data_o (id_rs1_data_w),
-    .rs2_data_o (id_rs2_data_w)
+    .rs2_data_o (id_rs2_data_w),
+    .ex_rs1_addr_i (id_ex_rs1_addr_r),
+    .ex_rs2_addr_i (id_ex_rs2_addr_r),
+    .ex_rs1_data_o (ex_rs1_rf_data_w),
+    .ex_rs2_data_o (ex_rs2_rf_data_w)
   );
 
   // -ID/EX-
@@ -305,8 +312,8 @@ module rv32i_cpu #(
   forward_unit u_forward_unit (
     .id_ex_rs1_addr_i (id_ex_rs1_addr_r),
     .id_ex_rs2_addr_i (id_ex_rs2_addr_r),
-    .id_ex_rs1_data_i (id_ex_rs1_data_r),
-    .id_ex_rs2_data_i (id_ex_rs2_data_r),
+    .id_ex_rs1_data_i (ex_rs1_rf_data_w),
+    .id_ex_rs2_data_i (ex_rs2_rf_data_w),
     .ex_mem_reg_write_i (ex_mem_reg_write_r),
     .ex_mem_rd_i (ex_mem_rd_addr_r),
     .ex_mem_result_src_i (ex_mem_result_src_r),

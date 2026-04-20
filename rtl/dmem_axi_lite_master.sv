@@ -128,11 +128,24 @@ module dmem_axi_lite_master (
     end
   endfunction
 
+  // SB/SH store data: replicate the value across all byte lanes so the data
+  function automatic logic [31:0] fmt_store(
+    input logic [31:0] data,
+    input logic [2:0] funct3
+  );
+    case (funct3)
+      3'b000: fmt_store = {4{data[7:0]}};
+      3'b001: fmt_store = {2{data[15:0]}};
+      3'b010: fmt_store = data;
+      default: fmt_store = data;
+    endcase
+  endfunction
+
   // avoids combinational error when FSM returns to IDLE
   assign load_data_o = load_data_hold_r;
 
-  // Stall: busy, or IDLE with need_mem unless suppressed immediate after B/AW_W or RESP+!need_mem
-  wire suppress_idle_need_w = (state_prev_r == ST_B) || (state_prev_r == ST_AW_W) || ((state_prev_r == ST_RESP) && !need_mem_w);
+  // Stall
+  wire suppress_idle_need_w = (state_prev_r == ST_B) || (state_prev_r == ST_RESP);
 
   assign stall_o = (state_r != ST_IDLE) || ((state_r == ST_IDLE) && need_mem_w && !suppress_idle_need_w);
 
@@ -146,7 +159,7 @@ module dmem_axi_lite_master (
   assign m_axi_awprot = 3'b000;
   assign m_axi_araddr = word_addr_lat_w;
   assign m_axi_awaddr = word_addr_lat_w;
-  assign m_axi_wdata = latched_wdata_r;
+  assign m_axi_wdata = fmt_store(latched_wdata_r, latched_funct3_r);
   assign m_axi_wstrb = store_strb(latched_funct3_r, latched_addr_r);
 
   // Handshakes
@@ -180,7 +193,7 @@ module dmem_axi_lite_master (
       state_prev_r <= state_r;
       case (state_r)
         ST_IDLE:
-          if (need_mem_w) begin
+          if (need_mem_w && !suppress_idle_need_w) begin
             latched_addr_r <= ex_mem_addr_i;
             latched_funct3_r <= ex_mem_funct3_i;
             latched_wdata_r <= ex_mem_wdata_i;
