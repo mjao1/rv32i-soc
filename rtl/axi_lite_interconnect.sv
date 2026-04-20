@@ -91,9 +91,7 @@ module axi_lite_interconnect #(
   wire gpio_awvalid = m_axi_awvalid && hit_gpio(m_axi_awaddr);
   wire uart_awvalid = m_axi_awvalid && hit_uart(m_axi_awaddr);
   wire timer_awvalid = m_axi_awvalid && hit_timer(m_axi_awaddr);
-  wire err_awvalid =
-      m_axi_awvalid && !hit_dmem(m_axi_awaddr) && !hit_gpio(m_axi_awaddr) &&
-      !hit_uart(m_axi_awaddr) && !hit_timer(m_axi_awaddr);
+  wire err_awvalid = m_axi_awvalid && !hit_dmem(m_axi_awaddr) && !hit_gpio(m_axi_awaddr) && !hit_uart(m_axi_awaddr) && !hit_timer(m_axi_awaddr);
 
   wire dmem_wvalid = m_axi_wvalid && (route_w == WR_DMEM);
   wire gpio_wvalid = m_axi_wvalid && (route_w == WR_GPIO);
@@ -314,17 +312,27 @@ module axi_lite_interconnect #(
           (route_w == WR_UART) ? uart_wready :
               (route_w == WR_TIMER) ? timer_wready : err_wready;
 
-  assign m_axi_bvalid = dmem_bvalid || gpio_bvalid || uart_bvalid || timer_bvalid || err_bvalid;
-  assign m_axi_bresp = dmem_bvalid ? dmem_bresp : gpio_bvalid ? gpio_bresp : uart_bvalid ? uart_bresp :
-      timer_bvalid ? timer_bresp : err_bresp;
+  assign m_axi_bresp = dmem_bvalid ? dmem_bresp : 
+      gpio_bvalid ? gpio_bresp : 
+          uart_bvalid ? uart_bresp : 
+              timer_bvalid ? timer_bresp : err_bresp;
 
-  assign m_axi_arready = ar_dmem ? dmem_arready : ar_gpio ? gpio_arready : ar_uart ? uart_arready :
-      ar_timer ? timer_arready : err_arready;
+  assign m_axi_arready = ar_dmem ? dmem_arready : 
+      ar_gpio ? gpio_arready : 
+          ar_uart ? uart_arready :
+            ar_timer ? timer_arready : err_arready;
 
-  assign m_axi_rdata = dmem_rvalid ? dmem_rdata : gpio_rvalid ? gpio_rdata : uart_rvalid ? uart_rdata :
-      timer_rvalid ? timer_rdata : err_rdata;
-  assign m_axi_rresp = dmem_rvalid ? dmem_rresp : gpio_rvalid ? gpio_rresp : uart_rvalid ? uart_rresp :
-      timer_rvalid ? timer_rresp : err_rresp;
+  assign m_axi_rdata = dmem_rvalid ? dmem_rdata : 
+      gpio_rvalid ? gpio_rdata : 
+          uart_rvalid ? uart_rdata :
+            timer_rvalid ? timer_rdata : err_rdata;
+
+  assign m_axi_rresp = dmem_rvalid ? dmem_rresp : 
+      gpio_rvalid ? gpio_rresp : 
+          uart_rvalid ? uart_rresp :
+              timer_rvalid ? timer_rresp : err_rresp;
+
   assign m_axi_rvalid = dmem_rvalid || gpio_rvalid || uart_rvalid || timer_rvalid || err_rvalid;
+  assign m_axi_bvalid = dmem_bvalid || gpio_bvalid || uart_bvalid || timer_bvalid || err_bvalid;
 
 endmodule
