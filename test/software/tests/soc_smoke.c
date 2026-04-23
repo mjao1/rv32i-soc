@@ -1,4 +1,4 @@
-/* Same numeric result as cpu_return.c, but globals in .data (fewer stack spills) for AXI LSU paths. */
+/* Same numeric result as cpu_smoke.c, but globals in .data (fewer stack spills) for AXI LSU paths. */
 static int max3(int a, int b, int c) {
   int m = a;
   if (b > m)

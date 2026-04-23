@@ -62,8 +62,8 @@ module tb_rv32i_cpu_c import rv32i_pkg::*; ();
   endtask
 
   initial begin
-    $readmemh("test/programs/cpu_return.mem", imem_load);
-    expected_value = 32'd5094; // edit based on test program
+    $readmemh("test/programs/cpu_smoke.mem", imem_load);
+    expected_value = 32'd5094;
 
     rst_w = 1'b1;
     imem_write_en_w = 1'b0;

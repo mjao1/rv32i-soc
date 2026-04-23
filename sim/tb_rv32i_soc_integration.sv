@@ -59,7 +59,7 @@ module tb_rv32i_soc_integration import rv32i_pkg::*; ();
   assign a0_w = u_soc.u_cpu.u_register_file.regs_r[10];
 
   initial begin
-    $readmemh("test/programs/soc_c_integration.mem", imem_load);
+    $readmemh("test/programs/soc_integration.mem", imem_load);
 
     gpio_i_w = 32'b0;
     rst_w = 1'b1;

@@ -55,8 +55,8 @@ module tb_rv32i_soc_c import rv32i_pkg::*; ();
   endtask
 
   initial begin
-    $readmemh("test/programs/soc_c_smoke.mem", imem_load);
-    expected_value = 32'd5094; // edit based on test program
+    $readmemh("test/programs/soc_smoke.mem", imem_load);
+    expected_value = 32'd5094;
 
     gpio_i_w = 32'b0;
     uart_rx_w = 1'b1;
